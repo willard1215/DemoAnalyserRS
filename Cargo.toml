@@ -1,0 +1,9 @@
+[package]
+name = "hello"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+byteorder = "1.5"
+csv = "1.3"
+plotters = "0.3"
