@@ -44,6 +44,8 @@ pub struct DemoFrame {
     pub gravity: f32,
     pub accelerate: f32,
     pub airaccelerate: f32,
+    pub friction: f32,
+    pub edgefriction: f32,
     pub maxvelocity: f32,
     pub command: Vec<String>,
     pub forwardmove: f32,
@@ -258,8 +260,8 @@ pub fn parse(path: &str) -> io::Result<Vec<DemoFrame>> {
             let accelerate = file.read_f32::<LittleEndian>()?;
             let airaccelerate = file.read_f32::<LittleEndian>()?;
             let _wateraccelerate = file.read_f32::<LittleEndian>()?;
-            let _friction = file.read_f32::<LittleEndian>()?;
-            let _edgefriction = file.read_f32::<LittleEndian>()?;
+            let friction = file.read_f32::<LittleEndian>()?;
+            let edgefriction = file.read_f32::<LittleEndian>()?;
             let _waterfriction = file.read_f32::<LittleEndian>()?;
             let _entgravity = file.read_f32::<LittleEndian>()?;
             let _bounce = file.read_f32::<LittleEndian>()?;
@@ -326,6 +328,8 @@ pub fn parse(path: &str) -> io::Result<Vec<DemoFrame>> {
                 gravity: (gravity), 
                 accelerate: (accelerate), 
                 airaccelerate: (airaccelerate), 
+                friction: (friction),
+                edgefriction: (edgefriction),
                 maxvelocity: (maxvelocitiy), 
                 command: (joined_cmds),
                 forwardmove: (forwardmove),

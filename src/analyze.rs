@@ -1,5 +1,6 @@
 use crate::demo::{DemoFrame, Vector3};
-use std::f32::consts::PI;
+use std::{f32::consts::PI};
+use crate::bspfile::{BspData};
 
 #[derive(Debug)]
 pub struct JumpSegment<'a> {
@@ -14,12 +15,34 @@ pub struct MovementData {
     pub frame: i32
 }
 
-pub fn airaccelerate(state: &DemoFrame) -> Vector3 {
-    if state.onground {
-        return Vector3 {x:0.0,y:0.0,z:0.0};
-    }
 
-    fn angle_vectors (angle:&Vector3) -> (Vector3, Vector3, Vector3) {
+
+const CONTENTS_EMPTY: i32 = 0;
+const CONTENTS_SOLID: i32 = -1;
+
+pub fn is_point_walkable_clip(point: Vector3, bsp: &BspData) -> bool {
+    let mut node_index = bsp.models[0].headnode[1]; // model[0], clipnode용
+
+    loop {
+        if node_index < 0 {
+            let contents = -1 - node_index;
+            return contents == CONTENTS_EMPTY;
+        }
+
+        let node = &bsp.clipnodes[node_index as usize];
+        let plane = &bsp.planes[node.planenum as usize];
+
+        let d = point.x * plane.normal[0] +
+                point.y * plane.normal[1] +
+                point.z * plane.normal[2] - plane.dist;
+
+        let side = if d >= 0.0 { 0 } else { 1 };
+        node_index = node.children[side] as i32;
+    }
+}
+
+
+pub fn angle_vectors (angle:&Vector3) -> (Vector3, Vector3, Vector3) {
         let (pitch, yaw, roll) = (angle.x, angle.y, angle.z);
 
         let trans_angle = |deg: f32| deg * (PI * 2.0 / 360.0);
@@ -52,6 +75,48 @@ pub fn airaccelerate(state: &DemoFrame) -> Vector3 {
         };
         
         (forward, right, up)
+    }
+
+pub fn friction(state: &DemoFrame) {
+
+    let velocity = state.simvel;
+    let speed: f32 = (velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z).sqrt();
+    if speed < 0.1 {
+        return;
+    }
+
+    let drop = 0;
+
+    if state.onground {
+       let start:Vector3;
+       let stop:Vector3;
+    }
+    
+}
+
+pub fn accelerate(state: &DemoFrame) -> Vector3 {
+    if !state.onground {
+        return Vector3 {x:0.0,y:0.0,z:0.0};
+    }
+
+    let (forward, right, up) = angle_vectors(&state.viewangle);
+    
+    let wishvel = Vector3 {
+        x: forward.x * state.forwardmove + right.x * state.sidemove + up.x * state.upmove,
+        y: forward.y * state.forwardmove + right.y * state.sidemove + up.y * state.upmove,
+        z: forward.z * state.forwardmove  + right.z * state.sidemove  + up.z * state.upmove
+    };
+
+    
+     
+    
+    
+    return Vector3  {x:0.0,y:0.0,z:0.0};
+}
+
+pub fn airaccelerate(state: &DemoFrame) -> Vector3 {
+    if state.onground {
+        return Vector3 {x:0.0,y:0.0,z:0.0};
     }
 
     let (forward, right, _up) = angle_vectors(&state.viewangle);
@@ -139,18 +204,20 @@ pub fn extract_jump_segments<'a>(frames: &'a[DemoFrame]) -> Vec<JumpSegment<'a>>
     let mut i = 0;
     let first_jump = true;
 
-    //연속동작 파악용 벡터 [0: 덕] [1:점프]
+    //movement 데이터를 저장할 벡터 [0: duck] [1:jump]
     let mut movements: Vec<MovementData> = Vec::new();
-
+    
+    //연속동작 여부
     let mut is_sequenced: bool = false;
+
+    //fog 카운트
     let mut frames_on_ground: u8 = 0;
 
     while i < frames.len() {
-        if i >150 {
-            break;
-        }
 
-        strafe_optimize(&frames[i]);
+        let (optimized_speed, optimized_viewangle) = strafe_optimize(&frames[i]);
+
+        println!("optimized_speed: {}, optimized_viewangle: {:?}", optimized_speed, optimized_viewangle);
         //onground 동작부
         if frames[i].onground {
             //연속동작 중 onground일 때 경우 fog 증가
@@ -167,6 +234,7 @@ pub fn extract_jump_segments<'a>(frames: &'a[DemoFrame]) -> Vec<JumpSegment<'a>>
             i += 1;
             continue;
         }
+
 
         //duck 감지
         if frames[i-2].onground & frames[i-2].command.contains(&"+duck".to_string()) {
@@ -194,24 +262,5 @@ pub fn extract_jump_segments<'a>(frames: &'a[DemoFrame]) -> Vec<JumpSegment<'a>>
 
     };
 
-    // strafe_optimize(
-    //     &DemoFrame { 
-    //         frame: (1), 
-    //         time: (1.0), 
-    //         timestamp: (1.0), 
-    //         viewangle: (Vector3 { x: (0.0), y: (0.0), z: (0.0) }), 
-    //         frametime: (1.0), 
-    //         onground: (false), 
-    //         simvel: (Vector3 { x: (250.0), y: (0.0), z: (0.0) }), 
-    //         simorg: (Vector3 { x: (0.0), y: (0.0), z: (0.0) }), 
-    //         msec: (10), 
-    //         gravity: (800.0), 
-    //         accelerate: (5.0), 
-    //         airaccelerate: (10.0), 
-    //         maxvelocity: (300.0), 
-    //         command: (Vec::new()), 
-    //         forwardmove: (0.0), 
-    //         sidemove: (200.0) }
-    // );
     segments
 }
