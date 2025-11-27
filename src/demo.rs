@@ -19,6 +19,10 @@ impl Vector3 {
         return (self.x * self.x + self.y * self.y).sqrt()
     }
 
+    pub fn length_3d(&self) -> f32{
+        return (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+    }
+
     pub fn normalize(&self) -> Vector3 {
         let length = (self.x * self.x + self.y * self.y).sqrt();
         if length == 0.0 {
@@ -35,11 +39,13 @@ impl Vector3 {
 pub struct DemoFrame {
     pub frame: i32,
     pub time: f32,
+    pub vieworg: Vector3,
     pub viewangle: Vector3,
     pub frametime: f32,
     pub onground: bool,
     pub simvel: Vector3,
     pub simorg: Vector3,
+    pub viewheight: Vector3,
     pub msec: u8,
     pub gravity: f32,
     pub accelerate: f32,
@@ -53,7 +59,7 @@ pub struct DemoFrame {
     pub upmove: f32,
     pub forward: Vector3,
     pub right: Vector3,
-    pub up: Vector3
+    pub up: Vector3,
 }
 
 
@@ -129,7 +135,7 @@ pub fn parse(path: &str) -> io::Result<Vec<DemoFrame>> {
         if demo_type == 1 {
             let _timestamp = file.read_f32::<LittleEndian>()?;
 
-            let _vieworg = Vector3 {
+            let vieworg = Vector3 {
                 x: file.read_f32::<LittleEndian>()?,
                 y: file.read_f32::<LittleEndian>()?,
                 z: file.read_f32::<LittleEndian>()?,
@@ -180,7 +186,7 @@ pub fn parse(path: &str) -> io::Result<Vec<DemoFrame>> {
                 z: file.read_f32::<LittleEndian>()?,
             };
 
-            let _viewheight = Vector3 {
+            let viewheight = Vector3 {
                 x: file.read_f32::<LittleEndian>()?,
                 y: file.read_f32::<LittleEndian>()?,
                 z: file.read_f32::<LittleEndian>()?,
@@ -241,7 +247,7 @@ pub fn parse(path: &str) -> io::Result<Vec<DemoFrame>> {
             let _lightlevel = file.read_u8()?;
             let _align2 = file.read_u8()?;
             let _buttons = file.read_u16::<LittleEndian>()?;
-            let _inpulse = file.read_u8()?;
+            let _impulse = file.read_u8()?;
             let _weaponselect = file.read_u8()?;
             let _align3 = file.read_u8()?;
             let _align4 = file.read_u8()?;
@@ -319,11 +325,13 @@ pub fn parse(path: &str) -> io::Result<Vec<DemoFrame>> {
             frames.push(DemoFrame { 
                 frame: (frame), 
                 time: (time), 
+                vieworg: (vieworg),
                 viewangle: (viewangle), 
                 frametime: (frametime), 
                 onground: (onground), 
                 simvel: (simvel), 
                 simorg: (simorg), 
+                viewheight: (viewheight),
                 msec: (msec), 
                 gravity: (gravity), 
                 accelerate: (accelerate), 
@@ -337,7 +345,7 @@ pub fn parse(path: &str) -> io::Result<Vec<DemoFrame>> {
                 upmove: (upmove),
                 forward: (forward),
                 right: (right),
-                up: (up)
+                up: (up),
             });
         }
         //파싱시작부
