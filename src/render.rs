@@ -10,8 +10,8 @@ use gif::{Encoder, Frame, Repeat};
 /// 단순 맵 단면도 (기존 기능 유지)
 pub fn render_slice_image(bsp: &BspData, center_z: f32, output: &str) {
     // z 범위
-    let z_min = center_z - 60.0;
-    let z_max = center_z + 60.0;
+    let z_min = center_z - 32.0;
+    let z_max = center_z + 32.0;
 
     // 캔버스
     let root = BitMapBackend::new(output, (2096, 2096)).into_drawing_area();
@@ -104,6 +104,7 @@ pub fn render_jump_cross_section(
     segment: &JumpSegment,
     output: &str,
 ) {
+    // 값 체크
     if segment.frames.is_empty() {
         return;
     }
@@ -146,9 +147,11 @@ pub fn render_jump_cross_section(
         y_max_view += 16.0;
     }
 
+    // 캔버스 생성
     let root = BitMapBackend::new(output, (1024, 1024)).into_drawing_area();
     root.fill(&WHITE).unwrap();
 
+    // 차트 생성
     let mut chart = ChartBuilder::on(&root)
         .margin(10)
         .caption("Jump Cross Section", ("sans-serif", 20))
@@ -198,6 +201,7 @@ pub fn render_jump_cross_section(
         }
 
         if points.len() == 2 {
+            // 선 그리기
             chart
                 .draw_series(std::iter::once(PathElement::new(
                     vec![(points[0][0], points[0][1]), (points[1][0], points[1][1])],
@@ -315,10 +319,6 @@ pub fn render_jump_gif(
         return Ok(());
     }
 
-    // GIF 캔버스 크기 (너무 크지 않게 줄여서 렌더링 비용을 제한)
-    let width: u32 = 400;
-    let height: u32 = 400;
-
     // 세그먼트 전체 궤적의 XY/Z 범위를 계산
     let mut min_x = f32::MAX;
     let mut max_x = f32::MIN;
@@ -345,6 +345,19 @@ pub fn render_jump_gif(
     let x_max_view = max_x + margin_xy;
     let y_min_view = min_y - margin_xy;
     let y_max_view = max_y + margin_xy;
+
+    // 월드 영역의 가로/세로 비율에 맞춰 GIF 캔버스의 width/height 를 결정
+    // (픽셀 수는 대략 base_px 에 맞추되, 비율은 강제로 바꾸지 않음)
+    let base_px: u32 = 600;
+    let world_w = (x_max_view - x_min_view).abs().max(1.0);
+    let world_h = (y_max_view - y_min_view).abs().max(1.0);
+    let (width, height) = if world_w >= world_h {
+        let h = ((base_px as f32) * world_h / world_w).max(1.0) as u32;
+        (base_px, h)
+    } else {
+        let w = ((base_px as f32) * world_w / world_h).max(1.0) as u32;
+        (w, base_px)
+    };
 
     println!("[render_jump_gif] start, frames in segment = {}", segment.frames.len());
 
@@ -430,7 +443,7 @@ pub fn render_jump_gif(
                     (px, py),
                     (px + wish_dir.x * wish_len, py + wish_dir.y * wish_len),
                 ],
-                &YELLOW,
+                &BLACK,
             )))?;
 
             // 이동 방향(simvel, 파란색)
