@@ -251,35 +251,34 @@ pub fn strafe_optimize(state: &DemoFrame) -> (f32, Vector3) {
 }
 
 
+/// 점프 세그먼트 추출 함수
 pub fn extract_jump_segments<'a>(frames: &'a [DemoFrame], map_data: &BspData) -> Vec<JumpSegment<'a>> {
     let mut segments: Vec<JumpSegment<'a>> = Vec::new();
     let mut i: usize = 0;
 
-    // movement 데이터를 저장할 벡터 [0: duck] [1:jump]
+    // movement 데이터 저장용 벡터 
     let mut movements: Vec<MovementData> = Vec::new();
 
-    // 연속 동작 여부 (duck / jump 가 하나의 기술로 이어지는 중인지)
+    // 연속 동작
     let mut is_sequenced: bool = false;
 
-    // fog(frames on ground) 카운트
-    // 같은 기술로 간주되는 구간에서, 지면에 붙어 있는 프레임 수
+    // fog 카운트
     let mut frames_on_ground: u8 = 0;
 
     // 현재 기술의 시작/마지막 프레임 인덱스
-    // start 는 "실제 기술 입력(duck/jump) 이전에 지상에서 가속하던 구간"까지 포함하도록
-    // 뒤로 확장해서 잡는다.
     let mut current_segment_start: Option<usize> = None;
     let mut last_segment_index: usize = 0;
 
     while i < frames.len() {
-        // 현재 프레임 기준으로 최적화 데이터 계산 (현재는 사용하지 않지만, 이후 분석용으로 유지)
-        let (_optimized_speed, _optimized_viewangle) = strafe_optimize(&frames[i]);
+
+        // 현재 프레임 기준으로 최적화 데이터 계산
+        // let (_optimized_speed, _optimized_viewangle) = strafe_optimize(&frames[i]);
 
         // onground 동작부
         if frames[i].onground {
             pm_friction(&frames[i], map_data);
 
-            // 연속 동작 중 onground 일 때 fog 증가
+            // 기술적용 중 onground 일 때 fog 증가
             if is_sequenced {
                 frames_on_ground = frames_on_ground.saturating_add(1);
                 last_segment_index = i;
@@ -305,16 +304,12 @@ pub fn extract_jump_segments<'a>(frames: &'a [DemoFrame], map_data: &BspData) ->
             i += 1;
             continue;
         } else {
-            // 공중에 있는 동안에는 fog 리셋
             frames_on_ground = 0;
         }
 
-        // 여기부터는 공중 상태에서, 바로 직전(on-ground) 프레임들을 기준으로
-        // duck / jump 입력을 감지한다.
-
         let mut started_this_frame = false;
 
-        // duck 감지 (i-2 가 안전한지 체크)
+        // duck 감지
         if i >= 2 && frames[i - 2].onground
             && frames[i - 2]
                 .command
@@ -323,11 +318,8 @@ pub fn extract_jump_segments<'a>(frames: &'a [DemoFrame], map_data: &BspData) ->
         {
             if !is_sequenced {
                 is_sequenced = true;
-                // duck 이 실제로 눌리기 이전 지상 가속 구간까지 포함시키기 위해
-                // i-2 이전으로 back-scan 한다.
+                // 2프레임 이전부터 이전 프레임 체크
                 let mut start = i - 2;
-                // 최대 15프레임(약 0.25초 내외)까지 뒤로 보면서,
-                // 지상 상태(on-ground)가 유지되는 범위를 기술 시작 구간으로 본다.
                 let mut back = 1usize;
                 while back <= 15 && start >= back {
                     let idx = start - back;
@@ -339,8 +331,6 @@ pub fn extract_jump_segments<'a>(frames: &'a [DemoFrame], map_data: &BspData) ->
                 }
                 current_segment_start = Some(start);
             } else if let Some(start) = current_segment_start {
-                // 이미 시퀀스가 진행 중인 상태에서 추가 duck 이 감지되면,
-                // 필요할 경우 더 앞쪽 지상 가속 프레임을 포함시킬 수 있도록 보정
                 let mut new_start = (i - 2).min(start);
                 let mut back = 1usize;
                 while back <= 15 && new_start >= back {
@@ -361,7 +351,7 @@ pub fn extract_jump_segments<'a>(frames: &'a [DemoFrame], map_data: &BspData) ->
             started_this_frame = true;
         }
 
-        // jump 감지 (i-1 이 안전한지 체크)
+        // 점프 감지
         if i >= 1 && frames[i - 1].onground
             && frames[i - 1]
                 .command
@@ -370,22 +360,24 @@ pub fn extract_jump_segments<'a>(frames: &'a [DemoFrame], map_data: &BspData) ->
         {
             if !is_sequenced {
                 is_sequenced = true;
-                // 점프 이전 지상 가속 구간까지 포함시키기 위해
-                // i-1 이전으로 back-scan 한다.
+                // 점프 세그먼트 감지
                 let mut start = i - 1;
                 let mut back = 1usize;
                 while back <= 15 && start >= back {
                     let idx = start - back;
                     if !frames[idx].onground {
-                        break;
+                        let dx = frames[idx].simorg.x - frames[idx - 1].simorg.x;
+                        let dy = frames[idx].simorg.y - frames[idx - 1].simorg.y;
+                        let horizontal_dist = (dx * dx + dy * dy).sqrt();
+                        if horizontal_dist >= 10.0 {
+                            break;
+                        }
                     }
                     start = idx;
                     back += 1;
                 }
                 current_segment_start = Some(start);
             } else if let Some(start) = current_segment_start {
-                // 기존 시작 인덱스보다 더 앞선 프레임을 시작점으로 삼을 수 있으면,
-                // 마찬가지로 그 앞의 지상 가속 구간까지 포함되도록 보정
                 let mut new_start = (i - 1).min(start);
                 let mut back = 1usize;
                 while back <= 15 && new_start >= back {
@@ -407,8 +399,6 @@ pub fn extract_jump_segments<'a>(frames: &'a [DemoFrame], map_data: &BspData) ->
             started_this_frame = true;
         }
 
-        // 시퀀스 중인데 이번 프레임에 새로운 동작이 감지되지 않았다면,
-        // 그래도 마지막 인덱스를 갱신해서 구간을 늘려준다.
         if is_sequenced && !started_this_frame {
             last_segment_index = i;
         }
@@ -416,7 +406,7 @@ pub fn extract_jump_segments<'a>(frames: &'a [DemoFrame], map_data: &BspData) ->
         i += 1;
     }
 
-    // 루프가 끝났는데 아직 열린 시퀀스가 있다면, 마지막까지를 하나의 기술로 처리
+    // 시퀀스가 종료되지 않았다면 처리할 로직
     if is_sequenced {
         if let Some(start) = current_segment_start {
             let end = last_segment_index.max(start);
@@ -426,6 +416,13 @@ pub fn extract_jump_segments<'a>(frames: &'a [DemoFrame], map_data: &BspData) ->
                 frames: &frames[start..=end],
             });
         }
+    }
+
+
+    
+    //첫 프레임 제거 - 플러그인 녹화 로직상 첫프레임은 텔포로 잡힘
+    if segments.len() > 0 {
+        segments[0].frames = &segments[0].frames[1..];
     }
 
     segments

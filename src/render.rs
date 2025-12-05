@@ -365,19 +365,13 @@ pub fn render_jump_gif(
     let mut encoder = Encoder::new(BufWriter::new(file), width as u16, height as u16, &[])?;
     encoder.set_repeat(Repeat::Infinite)?;
 
-    // 너무 많은 프레임이 있을 경우, 적당히 샘플링해서 GIF 크기와 렌더 시간을 줄인다.
+    // 프레임을 하나도 생략하지 않고 모든 프레임을 사용
     let total_frames = segment.frames.len();
-    // GIF 에 사용할 최대 프레임 수 (너무 크면 시간이 오래 걸림)
-    let max_gif_frames: usize = 80; // 필요시 조절
-    let step = if total_frames > max_gif_frames {
-        (total_frames as f32 / max_gif_frames as f32).ceil() as usize
-    } else {
-        1
-    };
+    let step: usize = 1;
 
     // 이전 프레임까지의 궤적을 누적해서 사용 (0..=idx 구간)
     let mut gif_frame_count: usize = 0;
-    for fi in (0..total_frames).step_by(step) {
+    for fi in 0..total_frames {
         let frame = &segment.frames[fi];
         let mut buffer = vec![0u8; (width * height * 3) as usize];
 
@@ -397,7 +391,57 @@ pub fn render_jump_gif(
                 .y_label_area_size(20)
                 .build_cartesian_2d(x_min_view..x_max_view, y_min_view..y_max_view)?;
 
-            // GIF 에서는 배경 맵을 생략하고, 궤적/플레이어/벡터만 그려서 속도를 높인다.
+            // 배경 맵 단면(face) 그리기 (render_jump_cross_section 와 동일 로직)
+            for face in &bsp.faces {
+                let mut points = Vec::new();
+
+                for i in 0..(face.numedges as usize) {
+                    let surfedge_index = bsp.surfedges[(face.firstedge as usize) + i];
+                    let (start, end) = if surfedge_index >= 0 {
+                        let edge = &bsp.edges[surfedge_index as usize];
+                        (edge.v[0], edge.v[1])
+                    } else {
+                        let edge = &bsp.edges[(-surfedge_index) as usize];
+                        (edge.v[1], edge.v[0])
+                    };
+
+                    let v0 = bsp.vertexes[start as usize].point;
+                    let v1 = bsp.vertexes[end as usize].point;
+
+                    if (v0[2] < z_min && v1[2] > z_max)
+                        || (v1[2] < z_min && v0[2] > z_max)
+                    {
+                        continue;
+                    }
+
+                    if (v0[2] < z_min && v1[2] > z_min)
+                        || (v1[2] < z_min && v0[2] > z_min)
+                    {
+                        let t = (z_min - v0[2]) / (v1[2] - v0[2]);
+                        points.push([
+                            v0[0] + t * (v1[0] - v0[0]),
+                            v0[1] + t * (v1[1] - v0[1]),
+                        ]);
+                    }
+
+                    if (v0[2] < z_max && v1[2] > z_max)
+                        || (v1[2] < z_max && v0[2] > z_max)
+                    {
+                        let t = (z_max - v0[2]) / (v1[2] - v0[2]);
+                        points.push([
+                            v0[0] + t * (v1[0] - v0[0]),
+                            v0[1] + t * (v1[1] - v0[1]),
+                        ]);
+                    }
+                }
+
+                if points.len() == 2 {
+                    chart.draw_series(std::iter::once(PathElement::new(
+                        vec![(points[0][0], points[0][1]), (points[1][0], points[1][1])],
+                        &BLACK,
+                    )))?;
+                }
+            }
 
             // 지금까지의 궤적(trace) 그리기 (0..=fi)
             chart.draw_series(LineSeries::new(
