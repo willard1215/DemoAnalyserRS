@@ -340,7 +340,7 @@ pub fn render_jump_gif(
     let z_min = center_z - 60.0;
     let z_max = center_z + 60.0;
 
-    let margin_xy = 100.0;
+    let margin_xy = 200.0;
     let x_min_view = min_x - margin_xy;
     let x_max_view = max_x + margin_xy;
     let y_min_view = min_y - margin_xy;
@@ -442,6 +442,7 @@ pub fn render_jump_gif(
                     )))?;
                 }
             }
+
 
             // 지금까지의 궤적(trace) 그리기 (0..=fi)
             chart.draw_series(LineSeries::new(

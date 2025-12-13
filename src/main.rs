@@ -1,12 +1,13 @@
-mod bspfile; //bsp 구조체 파싱모듈
-mod render; //렌더링 모듈
-mod demo; //데모 파싱모듈
 mod analyze; //데모 분석모듈
+mod bspfile; //bsp 구조체 파싱모듈
+mod demo; //데모 파싱모듈
+mod parse;
+mod render; //렌더링 모듈
 
+use analyze::*;
 use bspfile::load_bsp_file;
 use demo::parse;
-use analyze::*;
-use render::{render_slice_image, render_jump_cross_section, render_jump_gif};
+use render::{render_jump_cross_section, render_jump_gif, render_slice_image};
 
 fn main() {
     // 1. 맵 로드
@@ -40,10 +41,7 @@ fn main() {
         render_jump_cross_section(&map_data, first, "./test/jump_segment.png");
         println!("Done: jump_segment.png");
 
-        println!(
-            "Rendering jump GIF (frames = {})...",
-            first.frames.len()
-        );
+        println!("Rendering jump GIF (frames = {})...", first.frames.len());
         // 전체 궤적 GIF
         if let Err(err) = render_jump_gif(&map_data, first, "./test/jump_segment.gif") {
             eprintln!("Failed to render jump GIF: {}", err);
